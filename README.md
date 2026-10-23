@@ -177,7 +177,7 @@ Each workflow builds its graph in `buildGraph()`, the direct translation of the 
 ./mvnw test
 ```
 
-The tests use a fake chat model, fake embeddings and a mocked search engine, so they need no API keys or downloads. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output, and call every REST endpoint (including validation errors and the PDF upload).
+The tests use a fake chat model, fake embeddings and a mocked search engine, so they need no API keys or downloads. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output, and call every REST endpoint, including validation errors and the PDF upload (the blog endpoint only for validation, since it needs the network).
 
 ## Credits
 
