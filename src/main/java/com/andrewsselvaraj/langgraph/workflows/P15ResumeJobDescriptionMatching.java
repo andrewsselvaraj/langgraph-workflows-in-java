@@ -39,7 +39,7 @@ public class P15ResumeJobDescriptionMatching extends AbstractWorkflow {
                 .addNode("compare", node_async(state -> {
                     float[] resume = embeddings.embed(state.text("resume_text"));
                     float[] job = embeddings.embed(state.text("job_description"));
-                    return Map.of("match_score", String.format("%.4f", dot(resume, job)));
+                    return Map.of("match_score", String.format(java.util.Locale.ROOT, "%.4f", dot(resume, job)));
                 }))
                 .addNode("feedback", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(ask(
                         "Based on a match score of " + state.text("match_score")

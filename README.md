@@ -46,27 +46,62 @@ Build once:
 java -jar target/langgraph-workflows-in-java-0.1.0-SNAPSHOT.jar
 ```
 
-| Method | Path | What it does |
-|---|---|---|
-| `GET` | `/api/workflows` | Lists all workflows with their sample input |
-| `GET` | `/api/workflows/{id}` | One workflow (`{id}` is `14` or `14-budget-data-summarization`) |
-| `GET` | `/api/workflows/{id}/graph` | Mermaid diagram of the graph |
-| `POST` | `/api/workflows/{id}` | Runs it. The JSON body is the input; missing keys fall back to the sample input |
+Every project has its own controller in `src/main/java/.../api/` with a typed request and response
+(Java records, validated with Bean Validation). Bad input returns `400` with a problem-details body;
+a failing LLM call returns `502`.
+
+| # | Endpoint | Request body | Response |
+|---|---|---|---|
+| 01 | `POST /api/basic-chatbot/chat` | `message` | `answer` |
+| 02 | `POST /api/search-agent/chat` | `message`, `threadId`? | `answer`, `threadId` |
+| 03 | `POST /api/hitl/questions` | `question` | `threadId`, `draft` (201) |
+| 03 | `POST /api/hitl/questions/{threadId}/approval` | `answer` (`yes`/`no`) | `approved`, `answer` |
+| 05 | `POST /api/conversation-loop` | `message` | `answer`, `messageCount` |
+| 06 | `POST /api/items/process` | `items[]` | `summary`, `results[]` |
+| 07 | `POST /api/checkpointed-chat` | `message`, `threadId`?, `repeat`? | `answer`, `threadId`, `messagesInThread` |
+| 08 | `POST /api/data-extraction` | `question` | `answer`, `usedWebSearch` |
+| 09 | `POST /api/slogans` | `product`, `rounds`? | `slogan`, `history[]` |
+| 10 | `POST /api/hr-policy/questions` | `question`, `policy`? | `answer`, `context` |
+| 11 | `POST /api/research-reports` | `topic` | `research`, `blogPost` |
+| 12 | `POST /api/email-replies` | `email` | `reply` |
+| 13 | `POST /api/candidate-assessments` | `candidateResponse`, `criteria`? | `assessment` |
+| 14 | `POST /api/budget-summaries` | `csvData` | `totals`, `summary` |
+| 15 | `POST /api/resume-matches` | `resumeText`, `jobDescription` | `matchScore`, `feedback` |
+| 16 | `POST /api/rag/questions` | `question`, `knowledgeBase`? | `answer`, `context` |
+| 17 | `POST /api/log-analyses` | `logContent` | `errors`, `summary` |
+| 18 | `POST /api/web-reports` | `topic` | `report`, `sources` |
+| 19 | `POST /api/command-summaries` | `command` (allow-listed) | `output`, `summary` |
+| 20 | `POST /api/assistant` | `message` | `routedTo`, `answer` |
+| 21 | `POST /api/invoices/extract` | multipart `file` (PDF); none = sample invoice | `vendorName`, `customerName`, `invoiceNumber`, `totalAmount`, `dueDate` |
+| 22 | `POST /api/blog-posts/publish` | `urls[]`, `organizationName`?, `organizationDescription`? | `published`, `title`, `postId`, `blogPost` |
+| 23 | `POST /api/coding-agent/builds` | `requirement` | `deployedUrl`, `review` |
+| 24 | `POST /api/coding-agent-mini/pages` | `request` | `savedTo`, `review` |
+
+`?` marks optional fields.
 
 ```bash
-curl -X POST localhost:8080/api/workflows/14 -H 'Content-Type: application/json' \
-     -d '{"csv_data": "Category,Amount\nFood,200\nRent,1000\nFood,50"}'
+curl -X POST localhost:8080/api/budget-summaries -H 'Content-Type: application/json' \
+     -d '{"csvData": "Category,Amount\nFood,200\nRent,1000\nFood,50"}'
+
+curl -X POST localhost:8080/api/invoices/extract -F file=@my-invoice.pdf
 ```
 
 Human-in-the-loop (project 03) takes two calls:
 
 ```bash
-curl -X POST localhost:8080/api/workflows/03 -H 'Content-Type: application/json' -d '{"question": "What is LangGraph4j?"}'
-# -> {"status": "awaiting_approval", "threadId": "...", "draft": "..."}
-curl -X POST localhost:8080/api/workflows/03 -H 'Content-Type: application/json' -d '{"threadId": "<threadId>", "answer": "yes"}'
+curl -X POST localhost:8080/api/hitl/questions -H 'Content-Type: application/json' -d '{"question": "What is LangGraph4j?"}'
+# -> 201 {"status": "awaiting_approval", "threadId": "...", "draft": "..."}
+curl -X POST localhost:8080/api/hitl/questions/<threadId>/approval -H 'Content-Type: application/json' -d '{"answer": "yes"}'
 ```
 
-Projects 02 and 07 keep conversation memory per `threadId`.
+There is also a generic API over all projects, handy for exploring:
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/api/workflows` | Lists all workflows with their sample input |
+| `GET` | `/api/workflows/{id}` | One workflow (`{id}` is `14` or `14-budget-data-summarization`) |
+| `GET` | `/api/workflows/{id}/graph` | Mermaid diagram of the graph |
+| `POST` | `/api/workflows/{id}` | Runs it with a free-form JSON body; missing keys fall back to the sample input |
 
 ### From the command line (like `python main.py`)
 
@@ -127,7 +162,8 @@ A few Python graphs could not run as written. The Java versions keep the intent 
 src/main/java/com/andrewsselvaraj/langgraph/
   LangGraphWorkflowsApplication.java   entry point (web or CLI)
   config/                              app settings and the local embedding model bean (the chat model is Spring AI auto-config)
-  core/                                GraphState, Workflow API, registry, REST controller, CLI runner, Tavily, retriever
+  api/                                 one REST controller per project (typed records + validation) and error handling
+  core/                                GraphState, Workflow API, registry, generic REST controller, CLI runner, Tavily, retriever
   workflows/                           one class per project (P01 ... P24) + WordPress and GitHub clients
 src/main/resources/data/               invoice01.pdf, organisation description for the blog agent
 src/test/java/                         offline tests with a fake chat model and fake embeddings
@@ -141,7 +177,7 @@ Each workflow builds its graph in `buildGraph()`, the direct translation of the 
 ./mvnw test
 ```
 
-The tests use a fake chat model, fake embeddings and a mocked search engine, so they need no API keys or downloads. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output and the REST API.
+The tests use a fake chat model, fake embeddings and a mocked search engine, so they need no API keys or downloads. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output, and call every REST endpoint (including validation errors and the PDF upload).
 
 ## Credits
 
