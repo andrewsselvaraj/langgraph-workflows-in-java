@@ -3,14 +3,15 @@ package com.andrewsselvaraj.langgraph;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import dev.langchain4j.agent.tool.ToolExecutionRequest;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ToolExecutionResultMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.request.ChatRequest;
-import dev.langchain4j.model.chat.response.ChatResponse;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 
 /**
  * Offline stand-in for the LLM so the graphs can be tested without an API key.
@@ -22,30 +23,34 @@ public class FakeChatModel implements ChatModel {
     public final AtomicInteger calls = new AtomicInteger();
 
     @Override
-    public ChatResponse doChat(ChatRequest request) {
+    public ChatResponse call(Prompt prompt) {
         calls.incrementAndGet();
-        List<ChatMessage> messages = request.messages();
-        ChatMessage last = messages.getLast();
-        boolean toolsOffered = request.toolSpecifications() != null && !request.toolSpecifications().isEmpty();
-        if (toolsOffered && !(last instanceof ToolExecutionResultMessage)) {
-            return ChatResponse.builder().aiMessage(AiMessage.from(ToolExecutionRequest.builder()
-                    .id("call-1").name("web_search").arguments("{\"query\":\"weather in Chennai\"}").build())).build();
+        List<Message> messages = prompt.getInstructions();
+        Message last = messages.getLast();
+        boolean toolsOffered = prompt.getOptions() instanceof ToolCallingChatOptions o
+                && o.getToolCallbacks() != null && !o.getToolCallbacks().isEmpty();
+        if (toolsOffered && !(last instanceof ToolResponseMessage)) {
+            return reply(AssistantMessage.builder()
+                    .content("")
+                    .toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "web_search",
+                            "{\"query\":\"weather in Chennai\"}")))
+                    .build());
         }
-        String text = last instanceof UserMessage u && u.hasSingleText() ? u.singleText()
-                : last instanceof ToolExecutionResultMessage t ? "Based on the search: " + t.text()
-                : String.valueOf(last);
+        String text = last instanceof UserMessage u ? u.getText()
+                : last instanceof ToolResponseMessage t ? "Based on the search: " + t.getResponses().getFirst().responseData()
+                : last.getText();
         if (text.contains("Invoice Text")) {
-            return reply("""
-                    {"vendorName":"ACME Corp","customerName":"Jane Doe","invoiceNumber":"INV-001",
-                     "totalAmount":123.45,"dueDate":"2026-01-31"}""");
+            return reply(new AssistantMessage("""
+                    {"vendor_name":"ACME Corp","customer_name":"Jane Doe","invoice_number":"INV-001",
+                     "total_amount":123.45,"due_date":"2026-01-31"}"""));
         }
         if (text.contains("Write HTML/CSS code")) {
-            return reply("```html\n<h1>Calc</h1>\n```\n```css\nh1{color:red}\n```");
+            return reply(new AssistantMessage("```html\n<h1>Calc</h1>\n```\n```css\nh1{color:red}\n```"));
         }
-        return reply("echo: " + text.substring(0, Math.min(80, text.length())));
+        return reply(new AssistantMessage("echo: " + text.substring(0, Math.min(80, text.length()))));
     }
 
-    private static ChatResponse reply(String text) {
-        return ChatResponse.builder().aiMessage(AiMessage.from(text)).build();
+    private static ChatResponse reply(AssistantMessage message) {
+        return new ChatResponse(List.of(new Generation(message)));
     }
 }

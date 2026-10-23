@@ -10,13 +10,12 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-09-creative-content-generation: a {@code generate <-> refine} cycle. Python relied on
@@ -34,10 +33,10 @@ public class P09CreativeContentGeneration extends AbstractWorkflow {
     @Override
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
-                .addNode("generate", node_async(state -> Map.of(GraphState.MESSAGES, List.of(AiMessage.from(
+                .addNode("generate", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(
                         ask("Generate a marketing slogan for " + state.text("product") + ". Reply with the slogan only."))))))
                 .addNode("refine", node_async(state -> Map.of(
-                        GraphState.MESSAGES, List.of(AiMessage.from(
+                        GraphState.MESSAGES, List.of(new AssistantMessage(
                                 ask("Refine this slogan. Reply with the slogan only: " + state.lastText()))),
                         "round", state.<Integer>value("round").orElse(0) + 1)))
                 .addEdge(START, "generate")

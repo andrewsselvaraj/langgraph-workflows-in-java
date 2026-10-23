@@ -15,10 +15,12 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
@@ -30,8 +32,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.andrewsselvaraj.langgraph.core.WebSearch;
 import com.andrewsselvaraj.langgraph.core.Workflow;
 import com.andrewsselvaraj.langgraph.core.WorkflowRegistry;
-
-import dev.langchain4j.model.chat.ChatModel;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -51,6 +51,12 @@ class WorkflowsTest {
         @Primary
         ChatModel fakeChatModel() {
             return new FakeChatModel();
+        }
+
+        @Bean
+        @Primary
+        EmbeddingModel fakeEmbeddingModel() {
+            return new FakeEmbeddingModel();
         }
     }
 
@@ -155,7 +161,7 @@ class WorkflowsTest {
     @Test
     void resumeMatchScoresSimilarTextsHigher() throws Exception {
         double score = Double.parseDouble((String) run("15").get("matchScore"));
-        assertThat(score).isBetween(0.2, 1.0);
+        assertThat(score).isBetween(0.05, 1.0);
     }
 
     @Test

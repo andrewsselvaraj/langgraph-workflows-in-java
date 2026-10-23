@@ -10,13 +10,12 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.config.AppProperties;
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.model.chat.ChatModel;
 
 /** project-24-coding-agent-mini: {@code coder -> reviewer -> saver} (writes {@code output/index.html}). */
 @Component

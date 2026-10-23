@@ -9,16 +9,15 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.TextRetriever;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 
 /** project-13-candidate-assessment-system (interview coach): retrieve criteria, assess the answer. */
 @Component
@@ -41,7 +40,7 @@ public class P13CandidateAssessmentSystem extends AbstractWorkflow {
                     String context = TextRetriever.of(embeddings, state.text("criteria")).retrieve("assessment criteria");
                     String verdict = ask("Assess the candidate response based on these criteria: " + context
                             + "\nCandidate response: " + state.text("candidate_response"));
-                    return Map.of(GraphState.MESSAGES, List.of(AiMessage.from(verdict)));
+                    return Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(verdict)));
                 }))
                 .addEdge(START, "assessor")
                 .addEdge("assessor", END);

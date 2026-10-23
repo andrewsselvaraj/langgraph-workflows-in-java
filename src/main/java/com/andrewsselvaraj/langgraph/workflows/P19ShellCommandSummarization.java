@@ -12,14 +12,13 @@ import java.util.concurrent.TimeUnit;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.config.AppProperties;
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-19-shell-command-execution-and-summarization: {@code execute -> summarize}.
@@ -42,7 +41,7 @@ public class P19ShellCommandSummarization extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("execute", node_async(state -> Map.of("command_output", runCommand(state.text("command")))))
-                .addNode("summarize", node_async(state -> Map.of(GraphState.MESSAGES, List.of(AiMessage.from(
+                .addNode("summarize", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(
                         ask("Summarize the following command output:\n\n" + state.text("command_output")))))))
                 .addEdge(START, "execute")
                 .addEdge("execute", "summarize")

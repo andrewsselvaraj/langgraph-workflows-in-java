@@ -10,16 +10,15 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.WebSearch;
-
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-08-data-extraction-agent: {@code tool -> chatbot}. The tool node fetches live data with
@@ -43,13 +42,13 @@ public class P08DataExtractionAgent extends AbstractWorkflow {
                 .addNode("tool", node_async(state -> Map.of("research_data",
                         webSearch.isEnabled() ? webSearch.search(state.lastUserText(), 2) : "")))
                 .addNode("chatbot", node_async(state -> {
-                    List<ChatMessage> messages = new ArrayList<>();
+                    List<Message> messages = new ArrayList<>();
                     if (!state.text("research_data").isBlank()) {
-                        messages.add(SystemMessage.from("Extract the requested data from these search results "
+                        messages.add(new SystemMessage("Extract the requested data from these search results "
                                 + "and cite the source URL:\n\n" + state.text("research_data")));
                     }
                     messages.addAll(state.messages());
-                    return Map.of(GraphState.MESSAGES, List.of(llm.chat(messages).aiMessage()));
+                    return Map.of(GraphState.MESSAGES, List.of(reply(messages)));
                 }))
                 .addEdge(START, "tool")
                 .addEdge("tool", "chatbot")
@@ -63,7 +62,7 @@ public class P08DataExtractionAgent extends AbstractWorkflow {
 
     @Override
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
-        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(str(input, "message", "")))));
+        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(str(input, "message", "")))));
         return Map.of("answer", state.lastText(), "usedWebSearch", !state.text("research_data").isBlank());
     }
 }

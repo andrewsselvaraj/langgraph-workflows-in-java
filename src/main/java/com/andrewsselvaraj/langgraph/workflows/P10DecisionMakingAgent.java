@@ -9,16 +9,15 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.TextRetriever;
-
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 
 /**
  * project-10-decision-making-agent (HR policy helper): {@code retrieve -> chatbot} over a small
@@ -42,9 +41,9 @@ public class P10DecisionMakingAgent extends AbstractWorkflow {
         return GraphState.newGraph()
                 .addNode("retrieve", node_async(state -> Map.of("context",
                         TextRetriever.of(embeddings, state.text("policy")).retrieve(state.lastUserText()))))
-                .addNode("chatbot", node_async(state -> Map.of(GraphState.MESSAGES, List.of(llm.chat(
-                        UserMessage.from("Answer using this company policy:\n" + state.text("context")
-                                + "\n\nQuestion: " + state.lastUserText())).aiMessage()))))
+                .addNode("chatbot", node_async(state -> Map.of(GraphState.MESSAGES, List.of(reply(List.of(
+                        new UserMessage("Answer using this company policy:\n" + state.text("context")
+                                + "\n\nQuestion: " + state.lastUserText())))))))
                 .addEdge(START, "retrieve")
                 .addEdge("retrieve", "chatbot")
                 .addEdge("chatbot", END);
@@ -59,7 +58,7 @@ public class P10DecisionMakingAgent extends AbstractWorkflow {
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
         GraphState state = invoke(Map.of(
                 "policy", str(input, "policy", POLICY),
-                GraphState.MESSAGES, List.of(UserMessage.from(str(input, "question", "")))));
+                GraphState.MESSAGES, List.of(new UserMessage(str(input, "question", "")))));
         return Map.of("answer", state.lastText(), "context", state.text("context"));
     }
 }

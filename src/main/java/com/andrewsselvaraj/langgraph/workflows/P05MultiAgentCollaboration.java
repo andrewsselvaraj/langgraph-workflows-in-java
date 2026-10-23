@@ -10,13 +10,12 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-05-multi-agent-collaboration: the chatbot keeps talking to itself until the
@@ -36,7 +35,7 @@ public class P05MultiAgentCollaboration extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("chatbot", node_async(state ->
-                        Map.of(GraphState.MESSAGES, List.of(llm.chat(state.messages()).aiMessage()))))
+                        Map.of(GraphState.MESSAGES, List.of(reply(state.messages())))))
                 .addNode("end", node_async(state -> Map.of()))
                 .addEdge(START, "chatbot")
                 .addConditionalEdges("chatbot",
@@ -52,7 +51,7 @@ public class P05MultiAgentCollaboration extends AbstractWorkflow {
 
     @Override
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
-        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(str(input, "message", "Hello!")))));
+        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(str(input, "message", "Hello!")))));
         return Map.of("answer", state.lastText(), "messageCount", state.messages().size());
     }
 }

@@ -9,13 +9,12 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /** project-11-research-and-report-generation: two agents in sequence, {@code researcher -> writer}. */
 @Component
@@ -30,9 +29,9 @@ public class P11ResearchAndReportGeneration extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("researcher", node_async(state -> Map.of(GraphState.MESSAGES, List.of(
-                        AiMessage.from(ask("Research " + state.text("topic") + "."))))))
+                        new AssistantMessage(ask("Research " + state.text("topic") + "."))))))
                 .addNode("writer", node_async(state -> Map.of(GraphState.MESSAGES, List.of(
-                        AiMessage.from(ask("Write a blog post about: " + state.lastText()))))))
+                        new AssistantMessage(ask("Write a blog post about: " + state.lastText()))))))
                 .addEdge(START, "researcher")
                 .addEdge("researcher", "writer")
                 .addEdge("writer", END);

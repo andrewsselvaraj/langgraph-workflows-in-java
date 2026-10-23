@@ -9,15 +9,14 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.WebSearch;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /** project-18-web-research-and-report-generation: {@code research} (Tavily) {@code -> report}. Needs TAVILY_API_KEY. */
 @Component
@@ -35,7 +34,7 @@ public class P18WebResearchReport extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("research", node_async(state -> Map.of("research_data", webSearch.search(state.lastUserText()))))
-                .addNode("report", node_async(state -> Map.of(GraphState.MESSAGES, List.of(AiMessage.from(ask(
+                .addNode("report", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(ask(
                         "Generate a comprehensive report based on the following research data:\n\n"
                         + state.text("research_data")))))))
                 .addEdge(START, "research")
@@ -50,7 +49,7 @@ public class P18WebResearchReport extends AbstractWorkflow {
 
     @Override
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
-        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(str(input, "topic", "")))));
+        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(str(input, "topic", "")))));
         return Map.of("report", state.lastText(), "sources", state.text("research_data"));
     }
 }

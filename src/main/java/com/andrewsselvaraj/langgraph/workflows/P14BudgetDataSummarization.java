@@ -12,13 +12,12 @@ import java.util.stream.Collectors;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /** project-14-budget-data-summarization: {@code parse_csv -> summarize_budget}. */
 @Component
@@ -41,7 +40,7 @@ public class P14BudgetDataSummarization extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("parse_csv", node_async(state -> Map.of("summary", totalsByCategory(state.text("csv_data")))))
-                .addNode("summarize_budget", node_async(state -> Map.of(GraphState.MESSAGES, List.of(AiMessage.from(
+                .addNode("summarize_budget", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(
                         ask("Summarize the following budget data:\n\n" + state.text("summary")))))))
                 .addEdge(START, "parse_csv")
                 .addEdge("parse_csv", "summarize_budget")

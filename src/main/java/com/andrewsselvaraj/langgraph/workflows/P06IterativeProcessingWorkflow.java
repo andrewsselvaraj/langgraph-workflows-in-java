@@ -11,14 +11,13 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-06-iterative-processing-workflow: map-reduce style. {@code process} runs the LLM once per
@@ -36,14 +35,14 @@ public class P06IterativeProcessingWorkflow extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("process", node_async(state -> {
-                    List<ChatMessage> results = new ArrayList<>();
+                    List<Message> results = new ArrayList<>();
                     for (String item : state.<String>list("items")) {
-                        results.add(AiMessage.from(ask("Process this item: " + item)));
+                        results.add(new AssistantMessage(ask("Process this item: " + item)));
                     }
                     return Map.of(GraphState.MESSAGES, results);
                 }))
                 .addNode("aggregate", node_async(state -> Map.of(GraphState.MESSAGES, List.of(
-                        AiMessage.from("Aggregated results: " + state.messages().size() + " items processed")))))
+                        new AssistantMessage("Aggregated results: " + state.messages().size() + " items processed")))))
                 .addEdge(START, "process")
                 .addEdge("process", "aggregate")
                 .addEdge("aggregate", END);

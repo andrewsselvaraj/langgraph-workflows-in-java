@@ -12,14 +12,13 @@ import java.util.Set;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.ConsoleWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /** project-01-basic-chatbot: START -> bot -> END, one LLM call per user message. */
 @Component
@@ -36,7 +35,7 @@ public class P01BasicChatbot extends AbstractWorkflow implements ConsoleWorkflow
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("bot", node_async(state ->
-                        Map.of(GraphState.MESSAGES, List.of(llm.chat(state.messages()).aiMessage()))))
+                        Map.of(GraphState.MESSAGES, List.of(reply(state.messages())))))
                 .addEdge(START, "bot")
                 .addEdge("bot", END);
     }
@@ -48,7 +47,7 @@ public class P01BasicChatbot extends AbstractWorkflow implements ConsoleWorkflow
 
     @Override
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
-        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(str(input, "message", "Hello")))));
+        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(str(input, "message", "Hello")))));
         return Map.of("answer", state.lastText());
     }
 

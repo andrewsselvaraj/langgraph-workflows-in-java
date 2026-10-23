@@ -1,22 +1,27 @@
 # LangGraph Workflows in Java
 
 A Java / Spring Boot port of [Master LangGraph Workflows in Python: 20+ real-world agent projects](https://github.com/hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai) by HERE AND NOW AI.
-Every Python `StateGraph` is rebuilt with [LangGraph4j](https://github.com/langgraph4j/langgraph4j) and every LLM, tool, embedding and RAG call with [LangChain4j](https://github.com/langchain4j/langchain4j).
+Every Python `StateGraph` is rebuilt with [LangGraph4j](https://github.com/langgraph4j/langgraph4j), and every LLM, tool, embedding, document and RAG call uses [Spring AI](https://spring.io/projects/spring-ai) on Spring Boot 4.
+
+An earlier version built on LangChain4j instead of Spring AI is kept at the git tag `langchain4j-version`.
 
 | | Python original | This port |
 |---|---|---|
 | Graph engine | LangGraph 0.5 | LangGraph4j 1.9.6 |
-| LLM | `ChatCerebras` / `ChatOllama` (`gpt-oss-120b`) | LangChain4j `OpenAiChatModel` pointed at Cerebras or Ollama (both OpenAI-compatible) |
-| Web search | Tavily / DuckDuckGo | Tavily (`langchain4j-web-search-engine-tavily`) |
-| Embeddings + vector DB | HuggingFace `all-MiniLM-L6-v2` + FAISS | In-process `all-MiniLM-L6-v2` (ONNX) + `InMemoryEmbeddingStore` |
-| Checkpointer | `MemorySaver` / `SqliteSaver` | `MemorySaver` |
+| LLM | `ChatCerebras` / `ChatOllama` (`gpt-oss-120b`) | Spring AI `ChatModel` (OpenAI starter) pointed at Cerebras or Ollama, both OpenAI-compatible |
+| Tools | `bind_tools` + `ToolNode` | Spring AI `@Tool` callbacks; the graph's `tools` node executes the calls |
+| Web search | Tavily / DuckDuckGo | Tavily REST API via Spring `RestClient` |
+| Embeddings + vector DB | HuggingFace `all-MiniLM-L6-v2` + FAISS | Spring AI `TransformersEmbeddingModel` (local `all-MiniLM-L6-v2`, ONNX) + `SimpleVectorStore` |
+| Checkpointer | `MemorySaver` / `SqliteSaver` | `MemorySaver` with `SpringAIStateSerializer` |
 | Human in the loop | `interrupt()` + `Command(resume=...)` | `interruptBefore(...)` + `updateState(...)` + `GraphInput.resume()` |
-| Structured output | `with_structured_output(Invoice)` | LangChain4j AI Service returning a Java `record` |
+| Structured output | `with_structured_output(Invoice)` | Spring AI `BeanOutputConverter` into a Java `record` |
+| PDF and web pages | `pypdf`, Tavily | Spring AI `PagePdfDocumentReader`, `JsoupDocumentReader` |
 | Runtime | `python main.py` per project | One Spring Boot app: REST API **and** a `--workflow=<id>` CLI |
 
 ## Requirements
 
 * Java 21 (the Maven wrapper is included, no Maven install needed)
+* Internet on first use of projects 10, 13, 15, 16 and 20: Spring AI downloads the MiniLM model and the DJL native libraries once (a few hundred MB, cached under `~/.djl.ai`)
 * A Cerebras API key, **or** a local [Ollama](https://ollama.com) with `gpt-oss:20b`
 * Optional: Tavily key (web search), WordPress credentials (project 22), GitHub token (project 23)
 
@@ -24,8 +29,8 @@ Every Python `StateGraph` is rebuilt with [LangGraph4j](https://github.com/langg
 cp .env.example .env   # then fill in CEREBRAS_API_KEY (and TAVILY_API_KEY if you have one)
 ```
 
-To use Ollama instead of Cerebras, set `LLM_PROVIDER=ollama` and `LLM_MODEL=gpt-oss:20b`.
-Any other OpenAI-compatible endpoint works with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`.
+To use Ollama instead of Cerebras, set `LLM_BASE_URL=http://localhost:11434/v1` and `LLM_MODEL=gpt-oss:20b`.
+Any other OpenAI-compatible endpoint works with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`. These map to Spring AI's `spring.ai.openai.*` properties in `application.yml`.
 
 ## Run
 
@@ -121,11 +126,11 @@ A few Python graphs could not run as written. The Java versions keep the intent 
 ```
 src/main/java/com/andrewsselvaraj/langgraph/
   LangGraphWorkflowsApplication.java   entry point (web or CLI)
-  config/                              settings (application.yml / .env) and the LLM + embedding beans
+  config/                              app settings and the local embedding model bean (the chat model is Spring AI auto-config)
   core/                                GraphState, Workflow API, registry, REST controller, CLI runner, Tavily, retriever
   workflows/                           one class per project (P01 ... P24) + WordPress and GitHub clients
 src/main/resources/data/               invoice01.pdf, organisation description for the blog agent
-src/test/java/                         offline tests with a fake LLM
+src/test/java/                         offline tests with a fake chat model and fake embeddings
 ```
 
 Each workflow builds its graph in `buildGraph()`, the direct translation of the Python `add_node` / `add_edge` block.
@@ -136,7 +141,7 @@ Each workflow builds its graph in `buildGraph()`, the direct translation of the 
 ./mvnw test
 ```
 
-The tests use a fake chat model and a mocked search engine, so they need no API keys. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output and the REST API.
+The tests use a fake chat model, fake embeddings and a mocked search engine, so they need no API keys or downloads. They run every graph except the blog agent (which needs the network) and check the branching, loops, checkpoints, interrupt/resume, retrieval, structured output and the REST API.
 
 ## Credits
 

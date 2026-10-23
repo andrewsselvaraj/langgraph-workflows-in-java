@@ -13,13 +13,12 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
 import org.bsc.langgraph4j.checkpoint.MemorySaver;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-07-document-summarization-pipeline: a checkpointer (SqliteSaver(":memory:") in Python,
@@ -38,7 +37,7 @@ public class P07DocumentSummarizationPipeline extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("chatbot", node_async(state ->
-                        Map.of(GraphState.MESSAGES, List.of(llm.chat(state.messages()).aiMessage()))))
+                        Map.of(GraphState.MESSAGES, List.of(reply(state.messages())))))
                 .addEdge(START, "chatbot")
                 .addEdge("chatbot", END);
     }
@@ -63,7 +62,7 @@ public class P07DocumentSummarizationPipeline extends AbstractWorkflow {
         int repeat = Integer.parseInt(str(input, "repeat", "1"));
         GraphState state = null;
         for (int i = 0; i < Math.max(1, repeat); i++) {
-            state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(str(input, "message", "")))), config);
+            state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(str(input, "message", "")))), config);
         }
         return Map.of("answer", state.lastText(), "threadId", threadId, "messagesInThread", state.messages().size());
     }

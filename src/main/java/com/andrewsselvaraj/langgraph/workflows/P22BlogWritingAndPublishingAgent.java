@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
@@ -18,17 +19,14 @@ import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.reader.jsoup.JsoupDocumentReader;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.document.Document;
-import dev.langchain4j.data.document.loader.UrlDocumentLoader;
-import dev.langchain4j.data.document.parser.TextDocumentParser;
-import dev.langchain4j.data.document.transformer.jsoup.HtmlToTextDocumentTransformer;
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-22-blog-writing-and-publishing-agent: {@code research -> write -> proofread -> publish}.
@@ -73,9 +71,10 @@ public class P22BlogWritingAndPublishingAgent extends AbstractWorkflow {
         StringBuilder all = new StringBuilder();
         for (String url : state.<String>list("urls")) {
             try {
-                Document page = new HtmlToTextDocumentTransformer()
-                        .transform(UrlDocumentLoader.load(url, new TextDocumentParser()));
-                all.append("--- Content from ").append(url).append(" ---\n").append(page.text()).append("\n\n");
+                String page = new JsoupDocumentReader(url).get().stream()
+                        .map(Document::getText)
+                        .collect(Collectors.joining("\n"));
+                all.append("--- Content from ").append(url).append(" ---\n").append(page).append("\n\n");
                 log.info("Fetched content from {}", url);
             } catch (Exception e) {
                 log.warn("Error fetching content from {}: {}", url, e.getMessage());

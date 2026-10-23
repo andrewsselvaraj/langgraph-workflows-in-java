@@ -9,15 +9,14 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 
 /** project-15-resume-job-description-matching: {@code compare} (embedding similarity) {@code -> feedback}. */
 @Component
@@ -38,11 +37,11 @@ public class P15ResumeJobDescriptionMatching extends AbstractWorkflow {
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
                 .addNode("compare", node_async(state -> {
-                    float[] resume = embeddings.embed(state.text("resume_text")).content().vector();
-                    float[] job = embeddings.embed(state.text("job_description")).content().vector();
+                    float[] resume = embeddings.embed(state.text("resume_text"));
+                    float[] job = embeddings.embed(state.text("job_description"));
                     return Map.of("match_score", String.format("%.4f", dot(resume, job)));
                 }))
-                .addNode("feedback", node_async(state -> Map.of(GraphState.MESSAGES, List.of(AiMessage.from(ask(
+                .addNode("feedback", node_async(state -> Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(ask(
                         "Based on a match score of " + state.text("match_score")
                         + " (embedding similarity, 1.0 = identical), provide feedback on how well the resume matches "
                         + "the job description.\n\nResume: " + state.text("resume_text")

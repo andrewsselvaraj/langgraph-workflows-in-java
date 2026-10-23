@@ -1,28 +1,27 @@
 package com.andrewsselvaraj.langgraph.core;
 
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import com.andrewsselvaraj.langgraph.config.AppProperties;
 
-import dev.langchain4j.web.search.WebSearchEngine;
-import dev.langchain4j.web.search.WebSearchRequest;
-import dev.langchain4j.web.search.WebSearchResults;
-import dev.langchain4j.web.search.tavily.TavilyWebSearchEngine;
-
 /**
- * Tavily web search (the Python projects used TavilySearch / TavilySearchResults
+ * Tavily web search over its REST API (the Python projects used TavilySearch / TavilySearchResults
  * and, in a couple of places, DuckDuckGo).
  */
 @Component
 public class WebSearch {
 
     private final AppProperties.Tavily props;
-    private volatile WebSearchEngine engine;
+    private final RestClient http;
 
-    public WebSearch(AppProperties props) {
+    public WebSearch(AppProperties props, RestClient.Builder builder) {
         this.props = props.tavily();
+        this.http = builder.baseUrl("https://api.tavily.com").build();
     }
 
     public boolean isEnabled() {
@@ -34,22 +33,25 @@ public class WebSearch {
     }
 
     public String search(String query, int maxResults) {
-        WebSearchResults results = engine().search(WebSearchRequest.builder()
-                .searchTerms(query)
-                .maxResults(maxResults)
-                .build());
-        return results.results().stream()
-                .map(r -> "Title: " + r.title() + "\nURL: " + r.url() + "\n" + r.snippet())
-                .collect(Collectors.joining("\n\n"));
-    }
-
-    public WebSearchEngine engine() {
         if (!isEnabled()) {
             throw new IllegalStateException("This workflow needs web search: set TAVILY_API_KEY");
         }
-        if (engine == null) {
-            engine = TavilyWebSearchEngine.builder().apiKey(props.apiKey()).build();
+        TavilyResponse response = http.post().uri("/search")
+                .header("Authorization", "Bearer " + props.apiKey())
+                .body(Map.of("query", query, "max_results", maxResults))
+                .retrieve()
+                .body(TavilyResponse.class);
+        if (response == null || response.results() == null) {
+            return "";
         }
-        return engine;
+        return response.results().stream()
+                .map(r -> "Title: " + r.title() + "\nURL: " + r.url() + "\n" + r.content())
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    record TavilyResponse(List<Result> results) {
+    }
+
+    record Result(String title, String url, String content) {
     }
 }

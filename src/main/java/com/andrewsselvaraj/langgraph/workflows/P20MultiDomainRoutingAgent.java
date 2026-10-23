@@ -10,17 +10,16 @@ import java.util.Map;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.TextRetriever;
-
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 
 /**
  * project-20-multi-domain-routing-agent (capstone): a keyword router on START sends the question to
@@ -45,7 +44,7 @@ public class P20MultiDomainRoutingAgent extends AbstractWorkflow {
     @Override
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
         return GraphState.newGraph()
-                .addNode("general_chat", node_async(state -> reply(llm.chat(state.messages()).aiMessage().text())))
+                .addNode("general_chat", node_async(state -> reply(reply(state.messages()).getText())))
                 .addNode("finance_agent", node_async(state -> reply(ask("Summarize this budget data: "
                         + P14BudgetDataSummarization.totalsByCategory(P14BudgetDataSummarization.SAMPLE_CSV)))))
                 .addNode("hr_agent", node_async(state -> {
@@ -80,7 +79,7 @@ public class P20MultiDomainRoutingAgent extends AbstractWorkflow {
     }
 
     private static Map<String, Object> reply(String text) {
-        return Map.of(GraphState.MESSAGES, List.of(AiMessage.from(text)));
+        return Map.of(GraphState.MESSAGES, List.of(new AssistantMessage(text)));
     }
 
     @Override
@@ -91,7 +90,7 @@ public class P20MultiDomainRoutingAgent extends AbstractWorkflow {
     @Override
     public Map<String, Object> run(Map<String, Object> input) throws Exception {
         String message = str(input, "message", "");
-        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(UserMessage.from(message))));
+        GraphState state = invoke(Map.of(GraphState.MESSAGES, List.of(new UserMessage(message))));
         return Map.of("routedTo", route(message), "answer", state.lastText());
     }
 }

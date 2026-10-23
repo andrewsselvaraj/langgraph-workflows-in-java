@@ -4,34 +4,33 @@ import static org.bsc.langgraph4j.GraphDefinition.END;
 import static org.bsc.langgraph4j.GraphDefinition.START;
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-
-import dev.langchain4j.data.document.parser.apache.pdfbox.ApachePdfBoxDocumentParser;
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.output.structured.Description;
-import dev.langchain4j.service.AiServices;
-import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.V;
 
 /**
- * project-21-scanned-invoice-reading-agent: {@code read_file} (PDFBox) {@code -> extract_data}.
- * The Python {@code llm.with_structured_output(Invoice)} becomes a LangChain4j AI Service that
- * returns the {@link Invoice} record directly.
+ * project-21-scanned-invoice-reading-agent: {@code read_file} (Spring AI PDF reader)
+ * {@code -> extract_data}. The Python {@code llm.with_structured_output(Invoice)} becomes Spring AI's
+ * {@link BeanOutputConverter}: it adds the JSON schema of {@link Invoice} to the prompt and parses the
+ * reply back into the record.
  */
 @Component
 public class P21ScannedInvoiceReadingAgent extends AbstractWorkflow {
@@ -40,28 +39,15 @@ public class P21ScannedInvoiceReadingAgent extends AbstractWorkflow {
 
     /** Structured data the LLM must extract (the Pydantic model). */
     public record Invoice(
-            @Description("The name of the company issuing the invoice.") String vendorName,
-            @Description("The name of the customer on the invoice.") String customerName,
-            @Description("The unique identifier for the invoice.") String invoiceNumber,
-            @Description("The total amount due on the invoice.") double totalAmount,
-            @Description("The date when the invoice payment is due.") String dueDate) {
+            @JsonProperty("vendor_name") @JsonPropertyDescription("The name of the company issuing the invoice.") String vendorName,
+            @JsonProperty("customer_name") @JsonPropertyDescription("The name of the customer on the invoice.") String customerName,
+            @JsonProperty("invoice_number") @JsonPropertyDescription("The unique identifier for the invoice.") String invoiceNumber,
+            @JsonProperty("total_amount") @JsonPropertyDescription("The total amount due on the invoice.") double totalAmount,
+            @JsonProperty("due_date") @JsonPropertyDescription("The date when the invoice payment is due.") String dueDate) {
     }
 
-    public interface InvoiceExtractor {
-        @UserMessage("""
-                You are an expert accounting assistant.
-                Analyze the following invoice text and extract the key details into the required JSON format.
-
-                Invoice Text:
-                ---
-                {{text}}
-                ---
-                """)
-        Invoice extract(@V("text") String invoiceText);
-    }
-
-    private final ObjectMapper snakeCase = new ObjectMapper()
-            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    private final BeanOutputConverter<Invoice> converter = new BeanOutputConverter<>(Invoice.class);
+    private final ObjectMapper json = new ObjectMapper();
 
     public P21ScannedInvoiceReadingAgent(ChatModel llm) {
         super(llm, "21", "scanned-invoice-reading-agent", "Invoice reader",
@@ -70,12 +56,22 @@ public class P21ScannedInvoiceReadingAgent extends AbstractWorkflow {
 
     @Override
     protected StateGraph<GraphState> buildGraph() throws GraphStateException {
-        InvoiceExtractor extractor = AiServices.create(InvoiceExtractor.class, llm);
         return GraphState.newGraph()
                 .addNode("read_file", node_async(state -> Map.of("invoice_text", readPdf(state.text("invoice_path")))))
                 .addNode("extract_data", node_async(state -> {
-                    Invoice invoice = extractor.extract(state.text("invoice_text"));
-                    Map<String, Object> data = snakeCase.convertValue(invoice, new TypeReference<LinkedHashMap<String, Object>>() { });
+                    String prompt = """
+                            You are an expert accounting assistant.
+                            Analyze the following invoice text and extract the key details into the required JSON format.
+
+                            Invoice Text:
+                            ---
+                            %s
+                            ---
+
+                            %s
+                            """.formatted(state.text("invoice_text"), converter.getFormat());
+                    Invoice invoice = converter.convert(ask(prompt));
+                    Map<String, Object> data = json.convertValue(invoice, new TypeReference<LinkedHashMap<String, Object>>() { });
                     return Map.of("structured_data", data);
                 }))
                 .addEdge(START, "read_file")
@@ -83,15 +79,16 @@ public class P21ScannedInvoiceReadingAgent extends AbstractWorkflow {
                 .addEdge("extract_data", END);
     }
 
-    static String readPdf(String location) throws Exception {
+    static String readPdf(String location) {
         if (!location.toLowerCase().endsWith(".pdf")) {
             throw new IllegalArgumentException("invoice_path must point to a .pdf file");
         }
-        try (InputStream in = location.startsWith("classpath:")
-                ? new ClassPathResource(location.substring("classpath:".length())).getInputStream()
-                : Files.newInputStream(Path.of(location))) {
-            return new ApachePdfBoxDocumentParser().parse(in).text();
-        }
+        Resource pdf = location.startsWith("classpath:")
+                ? new ClassPathResource(location.substring("classpath:".length()))
+                : new FileSystemResource(location);
+        return new PagePdfDocumentReader(pdf).get().stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n"));
     }
 
     @Override

@@ -17,14 +17,13 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
 import org.bsc.langgraph4j.checkpoint.MemorySaver;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.stereotype.Component;
 
 import com.andrewsselvaraj.langgraph.core.AbstractWorkflow;
 import com.andrewsselvaraj.langgraph.core.ConsoleWorkflow;
 import com.andrewsselvaraj.langgraph.core.GraphState;
 import com.andrewsselvaraj.langgraph.core.WebSearch;
-
-import dev.langchain4j.model.chat.ChatModel;
 
 /**
  * project-03-human-in-the-loop-chatbot: {@code search -> draft -> approve -> final}.
@@ -114,8 +113,7 @@ public class P03HumanInTheLoopChatbot extends AbstractWorkflow implements Consol
     /** Stores the human's answer in the checkpoint and resumes the graph. */
     public Map<String, Object> resume(String threadId, String answer) throws Exception {
         RunnableConfig config = graph().updateState(config(threadId), Map.of("human_answer", answer));
-        GraphState state = graph().invoke(GraphInput.resume(), config)
-                .orElseThrow(() -> new IllegalStateException("Nothing to resume for thread " + threadId));
+        GraphState state = invoke(GraphInput.resume(), config);
         return Map.of("status", "done", "threadId", threadId,
                 "approved", state.flag("approved"), "answer", state.text("draft"));
     }
