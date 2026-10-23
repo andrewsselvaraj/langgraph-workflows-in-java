@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: langgraph-workflows-in-java
+  # Keys can live in a local .env file (KEY=value), like python-dotenv. See .env.example.
+  config:
+    import: optional:file:.env[.properties]
+  main:
+    banner-mode: off
+
+server:
+  port: ${PORT:8080}
+
+app:
+  output-dir: ${OUTPUT_DIR:output}
+  llm:
+    # cerebras (default, as in the Python repo) | ollama | openai | any OpenAI-compatible endpoint via LLM_BASE_URL
+    provider: ${LLM_PROVIDER:cerebras}
+    api-key: ${CEREBRAS_API_KEY:${LLM_API_KEY:}}
+    model: ${LLM_MODEL:gpt-oss-120b}
+    base-url: ${LLM_BASE_URL:}
+    temperature: ${LLM_TEMPERATURE:}
+    timeout-seconds: 120
+    log-requests: false
+  tavily:
+    api-key: ${TAVILY_API_KEY:}
+    max-results: 3
+  wordpress:
+    url: ${WORDPRESS_URL:}
+    username: ${WORDPRESS_USERNAME:}
+    password: ${WORDPRESS_PASSWORD:}
+  github:
+    token: ${GITHUB_TOKEN:}
+    repo-name: coding-agent-output
+  shell:
+    allowed-commands:
+      - ls -l
+      - dir
+      - git status
+      - java -version
+
+logging:
+  level:
+    org.bsc.langgraph4j: WARN
